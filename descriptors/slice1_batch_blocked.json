@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "env": {
+    "embedder": "browser-tab",
+    "browser": "chrome",
+    "browserVer": null,
+    "buildId": null,
+    "os": "windows-11",
+    "osVer": null,
+    "permissionState": "not-prompted",
+    "permissionMechanism": "none",
+    "network": "none",
+    "endpointTrust": "benign",
+    "validityTier": "throughput"
+  },
+  "batchId": null,
+  "descriptors": [
+    {
+      "runId": null,
+      "batchId": null,
+      "deviceId": "dev-localhost",
+      "seq": 0,
+      "target": {
+        "addressClass": "loopback",
+        "host": "127.0.0.1",
+        "literalForm": "dotted",
+        "port": 8080,
+        "scenario": ["app2app-loopback"]
+      },
+      "nameResolution": "literal",
+      "method": {
+        "type": "fetch",
+        "verb": "GET",
+        "mode": "no-cors",
+        "targetAddressSpace": "loopback",
+        "pnaPreflight": "off"
+      },
+      "originScheme": "https-public",
+      "redirect": { "via": "none", "fromClass": "public", "toClass": "loopback" },
+      "inPageContext": "top",
+      "payload": { "secret": null, "carrier": "query" },
+      "observer": ["client-event", "client-timing", "server-receipt"]
+    }
+  ]
+}

@@ -42,11 +42,21 @@
     const out = document.getElementById("out");
     const status = document.getElementById("status");
 
+    // decode a full batch passed inline as ?batch64=<base64url(JSON)> (doc 03 §2 URL mode) — lets the
+    // matrix runner drive any probe via the URL, no per-cell files / repo pushes.
+    function decodeBatch64(b64) {
+      const b = b64.replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(decodeURIComponent(escape(atob(b))));
+    }
+
     async function go() {
       out.textContent = "";
       status.textContent = "running…";
       window.__lnaDone = false; window.__lnaRows = []; window.__lnaError = null;
-      const batch = await (await fetch(window.__lnaConfig.batchUrl, { cache: "no-store" })).json();
+      const b64 = qs.get("batch64");
+      const batch = b64
+        ? decodeBatch64(b64)
+        : await (await fetch(window.__lnaConfig.batchUrl, { cache: "no-store" })).json();
       const rows = [];
       await runBatch(batch).onRow((row) => {
         rows.push(row);

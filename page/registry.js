@@ -2,6 +2,7 @@
 // Method / Target / Observer / Reporter is registered, NOT a hardcoded guard list.
 // (Static ES imports here; the offline batch-compiler does true filesystem auto-discovery later.)
 import * as fetchMethodMod from "./methods/fetchMethod.js";
+import * as elementMethodMod from "./methods/elementMethod.js";
 import * as literalTargetMod from "./targets/literalTarget.js";
 import * as clientEventMod from "./observers/clientEventObserver.js";
 import * as clientTimingMod from "./observers/clientTimingObserver.js";
@@ -22,7 +23,7 @@ function ingest(mod) {
   }
 }
 
-[fetchMethodMod, literalTargetMod, clientEventMod, clientTimingMod, callbackReporterMod].forEach(ingest);
+[fetchMethodMod, elementMethodMod, literalTargetMod, clientEventMod, clientTimingMod, callbackReporterMod].forEach(ingest);
 
 export const registry = {
   method: (id) => methods[id],

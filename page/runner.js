@@ -82,7 +82,10 @@ export function runBatch(rawBatch, opts = {}) {
     const env = batch.env;
     for (const d of batch.descriptors) {
       const method = registry.method(d.method.type);
-      const provider = registry.target(PROVIDER_FOR[d.nameResolution] || "literal");
+      // Any non-literal nameResolution routes to the dns provider (device-gua/public-v4/dual-stack/… all
+      // resolve an FQDN); only "literal"/undefined uses the literal provider. Future modes need no change here.
+      const provider = registry.target(
+        PROVIDER_FOR[d.nameResolution] || (d.nameResolution && d.nameResolution !== "literal" ? "dns" : "literal"));
       let row;
       if (!method || !method.applicable(d)) {
         // First-class "unsupported": the engine/method can't run this probe. Must NOT look like a gate.

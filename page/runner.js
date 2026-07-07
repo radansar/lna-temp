@@ -5,7 +5,26 @@
 import { registry } from "./registry.js";
 import { prepare } from "./descriptor.js";
 
-const PROVIDER_FOR = { literal: "literal" }; // nameResolution -> TargetProvider id (slice-1: literal only)
+// nameResolution -> TargetProvider id. `dns` (dnsTarget.js) returns the FQDN so the browser resolves it;
+// dns_control.py provisions the matching Route 53 record (D2 arms, 2026-07-06).
+const PROVIDER_FOR = {
+  literal: "literal",
+  "static-dns": "dns",
+  "dynamic-dns-to-self": "dns",
+  "wildcard": "dns",
+  "dns-rebind": "dns",
+};
+
+// Per-probe backstop: resolve to a sentinel if method.run hangs, so one stuck probe never stalls the
+// whole batch (the docstring promises this). Methods still get their own ctx.timeoutMs; this is the floor.
+function withTimeout(promise, ms) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    const timer = setTimeout(() => finish({ __runnerTimeout: true }), ms);
+    Promise.resolve(promise).then(finish, (e) => finish({ __runnerError: String((e && e.message) || e) }));
+  });
+}
 
 function assembleRow(env, d, target, result, signals) {
   return {
@@ -18,7 +37,7 @@ function assembleRow(env, d, target, result, signals) {
     network: env.network, endpoint_trust: env.endpointTrust, validity_tier: env.validityTier,
     // provenance (filled by orchestrator/faithfulness for a real run)
     pref_snapshot: null, field_trial_state: null, policy_snapshot: null,
-    listener_manifest_hash: null, dns_state_id: null, cert_fingerprint: null,
+    listener_manifest_hash: null, dns_state_id: d.dnsStateId || null, cert_fingerprint: null,
     ap_model_firmware: null, ipv6_mode: null,
     // page sweep (D1-D5)
     address_class: d.target.addressClass, host_resolved: target.host, literal_form: d.target.literalForm,
@@ -27,7 +46,7 @@ function assembleRow(env, d, target, result, signals) {
     method_type: d.method.type,
     method_subparams: JSON.stringify({
       verb: d.method.verb, mode: d.method.mode,
-      targetAddressSpace: d.method.targetAddressSpace, pnaPreflight: d.method.pnaPreflight,
+      targetAddressSpace: d.method.targetAddressSpace,
     }),
     // observations (M1) + native co-probe (M5, waived in slice-1)
     client_event: signals.client_event, client_timing_ms: signals.client_timing_ms,
@@ -66,20 +85,41 @@ export function runBatch(rawBatch, opts = {}) {
       const provider = registry.target(PROVIDER_FOR[d.nameResolution] || "literal");
       let row;
       if (!method || !method.applicable(d)) {
+        // First-class "unsupported": the engine/method can't run this probe. Must NOT look like a gate.
         row = assembleRow(env, d, { host: d.target.host, port: d.target.port }, {
-          failureClass: "none", blockReason: null, source: "runner", stack: "",
+          failureClass: "unsupported", blockReason: null, source: "runner", stack: "",
           timestamp: Date.now(), clientTimingMs: 0,
         }, { client_event: "unsupported" });
       } else {
         const target = await provider.resolve(d);
         const ctx = { target, env, timeoutMs: opts.timeoutMs || 5000 };
-        const result = await method.run(d, ctx);
-        const probe = { descriptor: d, ctx, result };
-        const signals = {};
-        for (const obs of registry.observersFor(d.observer)) {
-          Object.assign(signals, await obs.observe(probe));
+        // Backstop a bit beyond the method's own budget so the method gets its chance first.
+        const result = await withTimeout(method.run(d, ctx), ctx.timeoutMs + 2000);
+        if (result && result.__runnerTimeout) {
+          // client_timing_ms must ride in the signals arg (assembleRow reads it from there, not result).
+          row = assembleRow(env, d, target, {
+            failureClass: "timeout", blockReason: "runner-timeout", source: "runner", stack: "",
+            timestamp: Date.now(),
+          }, { client_event: "timeout", client_timing_ms: ctx.timeoutMs });
+        } else if (result && result.__runnerError) {
+          row = assembleRow(env, d, target, {
+            failureClass: "refused", blockReason: result.__runnerError, source: "runner", stack: "",
+            timestamp: Date.now(),
+          }, { client_event: "error", client_timing_ms: 0 });
+        } else if (!result || typeof result !== "object") {
+          // a method that resolved with nothing/garbage must not crash the observers (and the whole batch).
+          row = assembleRow(env, d, target, {
+            failureClass: "refused", blockReason: "runner-bad-result", source: "runner", stack: "",
+            timestamp: Date.now(),
+          }, { client_event: "error", client_timing_ms: 0 });
+        } else {
+          const probe = { descriptor: d, ctx, result };
+          const signals = {};
+          for (const obs of registry.observersFor(d.observer)) {
+            Object.assign(signals, await obs.observe(probe));
+          }
+          row = assembleRow(env, d, target, result, signals);
         }
-        row = assembleRow(env, d, target, result, signals);
       }
       api.rows.push(row);
       if (reporter) await reporter.emit(row);

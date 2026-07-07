@@ -16,8 +16,14 @@ export const fetchMethod = {
   async run(d, ctx) {
     const t = ctx.target;
     const p = d.payload;
+    // Scheme is descriptor-driven (D26): an HTTPS page must reach a static-dns->local name over HTTPS
+    // (https://cert.lnatest.click:<port>) because http://<name> is mixed-content blocked BEFORE DNS
+    // resolves (the loopback exemption is literals-only). Default "http" keeps every existing literal-IP
+    // cell byte-identical. NOTE: mixed-content classification still applies below — an https-page ->
+    // http-name (or http-IP) probe can still trip the "mixed content" -> mixed-content-blocked branch.
+    const scheme = (d.target && d.target.scheme) || "http";
     const url =
-      `http://${t.host}:${t.port}/probe` +
+      `${scheme}://${t.host}:${t.port}/probe` +
       `?batchId=${encodeURIComponent(d.batchId)}` +
       `&deviceId=${encodeURIComponent(d.deviceId)}` +
       `&runId=${encodeURIComponent(d.runId)}` +

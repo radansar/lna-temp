@@ -4,6 +4,7 @@
 import * as fetchMethodMod from "./methods/fetchMethod.js";
 import * as elementMethodMod from "./methods/elementMethod.js";
 import * as literalTargetMod from "./targets/literalTarget.js";
+import * as dnsTargetMod from "./targets/dnsTarget.js";
 import * as clientEventMod from "./observers/clientEventObserver.js";
 import * as clientTimingMod from "./observers/clientTimingObserver.js";
 import * as callbackReporterMod from "./reporter/callbackReporter.js";
@@ -23,7 +24,7 @@ function ingest(mod) {
   }
 }
 
-[fetchMethodMod, elementMethodMod, literalTargetMod, clientEventMod, clientTimingMod, callbackReporterMod].forEach(ingest);
+[fetchMethodMod, elementMethodMod, literalTargetMod, dnsTargetMod, clientEventMod, clientTimingMod, callbackReporterMod].forEach(ingest);
 
 export const registry = {
   method: (id) => methods[id],

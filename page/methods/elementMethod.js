@@ -5,11 +5,14 @@
 // passive vs active resource loads the same way it gates fetch.
 function probeUrl(d, ctx) {
   const t = ctx.target, p = d.payload;
+  // Scheme is descriptor-driven (bypass-matrix): an HTTPS DNS-name cell must load over https so it isn't
+  // mixed-content-blocked before DNS resolves. Default "http" keeps every literal-IP cell byte-identical.
+  const scheme = (t && t.scheme) || "http";
   const q = new URLSearchParams({
     batchId: d.batchId, deviceId: d.deviceId, runId: d.runId, seq: String(d.seq),
     secret: p.secret, via: "element-" + (d.method.element || "img"),
   });
-  return `http://${t.host}:${t.port}/probe?` + q.toString();
+  return `${scheme}://${t.host}:${t.port}/probe?` + q.toString();
 }
 
 export const elementMethod = {
